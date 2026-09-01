@@ -17,30 +17,30 @@ const MODES = [
 async function generateVariants({ imageBuffer, metadata, seedBase }) {
   if (PROVIDER !== 'huggingface') {
     throw Object.assign(new Error('Unsupported provider'), {
-      publicMessage: `Provider "${PROVIDER}" is not configured. Set IMAGE_PROVIDER=huggingface.`
+      publicMessage: 'Set IMAGE_PROVIDER=huggingface.'
     });
   }
 
   if (!process.env.HF_TOKEN) {
     throw Object.assign(new Error('Missing HF_TOKEN'), {
       statusCode: 503,
-      publicMessage: 'Image generation is not configured yet. Add HF_TOKEN on the server, then try again.'
+      publicMessage: 'Add HF_TOKEN to the Render server environment.'
     });
   }
 
-  // HF_TOKEN is kept server-side. Hugging Face routes this request to the
-  // selected Inference Provider (Fal.ai by default) without exposing secrets.
   const client = new InferenceClient(process.env.HF_TOKEN);
   const base = describeMetadata(metadata);
   const results = [];
 
-  // Sequential calls reduce burst failures on low-cost inference accounts.
+  // FLUX.2-dev is an image+text workflow, so use imageTextToImage rather than
+  // the generic imageToImage task. Hugging Face documents FLUX.2-dev under
+  // image-to-image and provides imageTextToImage for this model.
   for (let i = 0; i < 4; i++) {
     const seed = seedBase + i * 7919;
     const prompt = `${HIDDEN_INSTRUCTION}\n\nAutomatic reference analysis: ${base}\n\nVariation direction: ${MODES[i]}\n\nGenerate only the finished artwork. No mockup, no garment, no room scene, no typography.`;
 
     try {
-      const image = await client.imageToImage({
+      const image = await client.imageTextToImage({
         provider: HF_PROVIDER,
         model: MODEL,
         inputs: imageBuffer,
@@ -64,20 +64,21 @@ async function generateVariants({ imageBuffer, metadata, seedBase }) {
         name: error?.name,
         message: error?.message,
         status: error?.status,
-        statusCode: error?.statusCode
+        statusCode: error?.statusCode,
+        body: error?.body
       });
 
       const status = Number(error?.status || error?.statusCode || 0);
       let publicMessage = 'The image provider could not generate the variations. Please try again.';
 
       if (status === 401 || status === 403) {
-        publicMessage = 'Hugging Face rejected the request. Check that HF_TOKEN is valid and has Inference Providers permission, and that you accepted the FLUX.2-dev model terms.';
+        publicMessage = 'Hugging Face rejected the request. Check HF_TOKEN permissions and accept the FLUX.2-dev model terms.';
       } else if (status === 402) {
-        publicMessage = 'Hugging Face requires available inference credits for this request. Check your Hugging Face billing/credits and try again.';
+        publicMessage = 'Hugging Face requires available inference credits for this request. Check your credits/billing.';
       } else if (status === 404) {
-        publicMessage = `The selected image model/provider is unavailable. Check IMAGE_MODEL (${MODEL}) and HF_PROVIDER (${HF_PROVIDER}).`;
+        publicMessage = `The selected model/provider is unavailable: ${MODEL} via ${HF_PROVIDER}.`;
       } else if (status === 429) {
-        publicMessage = 'The image provider is temporarily rate-limited. Please wait a moment and try again.';
+        publicMessage = 'The image provider is temporarily rate-limited. Please wait and try again.';
       }
 
       throw Object.assign(new Error('Provider generation failed'), {
