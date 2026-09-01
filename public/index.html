@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="VAMSHI AI creates original textile and surface-pattern variations from one reference image.">
+  <title>VAMSHI AI — Textile Variant Generator</title>
+  <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <div class="bg-orb orb-one"></div><div class="bg-orb orb-two"></div>
+  <header class="topbar">
+    <div class="brand"><span class="brand-mark">V</span><div><strong>VAMSHI AI</strong><small>TEXTILE VARIANT STUDIO</small></div></div>
+    <div class="status"><span></span> AI READY</div>
+  </header>
+
+  <main class="shell">
+    <section class="hero">
+      <div class="eyebrow">REFERENCE → VARIATIONS</div>
+      <h1>Turn one design into <em>four new ideas.</em></h1>
+      <p>Upload one textile, fabric, motif, print, or surface pattern. VAMSHI AI analyzes it automatically and creates a new visual family — no prompt writing required.</p>
+    </section>
+
+    <section class="workspace">
+      <div class="panel upload-panel">
+        <div class="section-title"><span>01</span><div><h2>Reference image</h2><p>One image is all you need.</p></div></div>
+        <label class="dropzone" id="dropzone" for="fileInput">
+          <input id="fileInput" type="file" accept="image/jpeg,image/png,image/webp" hidden>
+          <div id="emptyUpload" class="empty-upload"><div class="upload-icon">↑</div><strong>Drop your reference here</strong><span>or click to browse · JPG, PNG, WEBP · max 8 MB</span></div>
+          <div id="previewWrap" class="preview-wrap hidden"><img id="preview" alt="Reference preview"><button id="removeBtn" class="remove" type="button" aria-label="Remove reference">×</button></div>
+        </label>
+        <div class="actions"><button id="generateBtn" class="primary" disabled><span>Generate 4 variations</span><span>→</span></button></div>
+      </div>
+
+      <div class="panel results-panel">
+        <div class="results-head">
+          <div class="section-title"><span>02</span><div><h2>Your variations</h2><p id="resultSub">Four fresh designs from your reference.</p></div></div>
+          <button id="regenerateBtn" class="secondary hidden" type="button">↻ Regenerate all</button>
+        </div>
+        <div id="loading" class="loading hidden"><div class="loader"></div><strong id="loadingTitle">Analyzing your design...</strong><span id="loadingText">Understanding color, texture, motifs and repetition.</span></div>
+        <div id="errorBox" class="error hidden"><strong>Generation didn't finish.</strong><span id="errorText">Please try again.</span><button id="retryBtn" type="button">Try again</button></div>
+        <div id="results" class="results-grid">
+          <div class="empty-result">Upload a reference to begin.</div>
+        </div>
+      </div>
+    </section>
+
+    <section id="analysisCard" class="analysis hidden">
+      <div><span class="mini-label">AUTOMATIC ANALYSIS</span><h3>Design characteristics detected</h3></div>
+      <div id="analysisTags" class="tags"></div>
+    </section>
+  </main>
+
+  <div id="lightbox" class="lightbox hidden" role="dialog" aria-modal="true"><button id="closeLightbox" class="close-lightbox">×</button><img id="lightboxImage" alt="Full-screen generated variation"></div>
+  <script src="/app.js"></script>
+</body>
+</html>
