@@ -13,8 +13,8 @@ const app = express();
 const PORT = Number(process.env.PORT || 3000);
 const MAX_UPLOAD_MB = Number(process.env.MAX_UPLOAD_MB || 8);
 const MAX_UPLOAD_BYTES = MAX_UPLOAD_MB * 1024 * 1024;
-
 const allowedTypes = new Set(['image/jpeg', 'image/png', 'image/webp']);
+
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: MAX_UPLOAD_BYTES, files: 1 },
@@ -34,7 +34,6 @@ app.post('/api/generate', upload.single('reference'), async (req, res) => {
     if (!req.file) return res.status(400).json({ error: 'Please upload one JPG, JPEG, PNG, or WEBP image.' });
     if (!allowedTypes.has(req.file.mimetype)) return res.status(415).json({ error: 'Unsupported image type.' });
 
-    // Normalize the reference image. The raw upload never reaches the browser again.
     const normalized = await sharp(req.file.buffer)
       .rotate()
       .resize({ width: 1536, height: 1536, fit: 'inside', withoutEnlargement: true })
@@ -44,14 +43,7 @@ app.post('/api/generate', upload.single('reference'), async (req, res) => {
     const metadata = await analyzeImage(normalized);
     const generationId = crypto.randomUUID();
     const seedBase = crypto.randomInt(1, 2147483646);
-
-    const results = await generateVariants({
-      imageBuffer: normalized,
-      metadata,
-      generationId,
-      seedBase
-    });
-
+    const results = await generateVariants({ imageBuffer: normalized, metadata, generationId, seedBase });
     res.json({ generationId, metadata, results });
   } catch (error) {
     console.error(error);
@@ -68,11 +60,7 @@ async function analyzeImage(buffer) {
   const meta = await image.metadata();
   const channels = stats.channels || [];
   const means = channels.map(c => Math.round(c.mean));
-  const dominant = [...channels]
-    .map((c, i) => ({ i, mean: c.mean, stdev: c.stdev }))
-    .sort((a, b) => b.mean - a.mean)[0];
   const variance = channels.reduce((sum, c) => sum + (c.stdev || 0), 0) / Math.max(channels.length, 1);
-
   return {
     width: meta.width || 0,
     height: meta.height || 0,
@@ -114,7 +102,5 @@ app.use((err, _req, res, _next) => {
   console.error(err);
   res.status(500).json({ error: 'Unexpected server error.' });
 });
-
-app.get('*', (_req, res) => res.sendFile(path.join(__dirname, 'public', 'index.html')));
 
 app.listen(PORT, () => console.log(`VAMSHI AI listening on port ${PORT}`));
