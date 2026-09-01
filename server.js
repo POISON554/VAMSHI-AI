@@ -5,7 +5,7 @@ const cors = require('cors');
 const multer = require('multer');
 const sharp = require('sharp');
 const dotenv = require('dotenv');
-const { generateVariants } = require('./services/imageProvider');
+const { generateVariants } = require('./services/edenai');
 
 dotenv.config();
 
@@ -18,7 +18,10 @@ const allowedTypes = new Set(['image/jpeg', 'image/png', 'image/webp']);
 const upload = multer({
   storage: multer.memoryStorage(),
   limits: { fileSize: MAX_UPLOAD_BYTES, files: 1 },
-  fileFilter: (_req, file, cb) => cb(null, allowedTypes.has(file.mimetype))
+  fileFilter: (_req, file, cb) => {
+    if (!allowedTypes.has(file.mimetype)) return cb(new Error('Only JPG, JPEG, PNG and WEBP images are supported.'));
+    cb(null, true);
+  }
 });
 
 app.use(cors({ origin: true }));
@@ -26,13 +29,22 @@ app.use(express.json({ limit: '256kb' }));
 app.use(express.static(path.join(__dirname, 'public')));
 
 app.get('/api/health', (_req, res) => {
-  res.json({ ok: true, configured: Boolean(process.env.HF_TOKEN), provider: process.env.IMAGE_PROVIDER || 'huggingface' });
+  res.json({
+    ok: true,
+    provider: 'edenai',
+    configured: Boolean(process.env.EDENAI_API_KEY)
+  });
 });
 
 app.post('/api/generate', upload.single('reference'), async (req, res) => {
   try {
-    if (!req.file) return res.status(400).json({ error: 'Please upload one JPG, JPEG, PNG, or WEBP image.' });
-    if (!allowedTypes.has(req.file.mimetype)) return res.status(415).json({ error: 'Unsupported image type.' });
+    if (!req.file) {
+      return res.status(400).json({ error: 'Please upload one JPG, JPEG, PNG, or WEBP image.' });
+    }
+
+    if (!allowedTypes.has(req.file.mimetype)) {
+      return res.status(415).json({ error: 'Unsupported image type.' });
+    }
 
     const normalized = await sharp(req.file.buffer)
       .rotate()
@@ -43,13 +55,23 @@ app.post('/api/generate', upload.single('reference'), async (req, res) => {
     const metadata = await analyzeImage(normalized);
     const generationId = crypto.randomUUID();
     const seedBase = crypto.randomInt(1, 2147483646);
-    const results = await generateVariants({ imageBuffer: normalized, metadata, generationId, seedBase });
+
+    const results = await generateVariants({
+      imageBuffer: normalized,
+      mimeType: 'image/png',
+      metadata,
+      generationId,
+      seedBase
+    });
+
     res.json({ generationId, metadata, results });
   } catch (error) {
-    console.error(error);
+    console.error('Generation error:', error);
+
     const message = error.code === 'LIMIT_FILE_SIZE'
       ? `Image is too large. Maximum size is ${MAX_UPLOAD_MB} MB.`
-      : (error.publicMessage || 'Generation failed. Please try again.');
+      : (error.publicMessage || error.message || 'Generation failed. Please try again.');
+
     res.status(error.statusCode || 500).json({ error: message });
   }
 });
@@ -61,6 +83,7 @@ async function analyzeImage(buffer) {
   const channels = stats.channels || [];
   const means = channels.map(c => Math.round(c.mean));
   const variance = channels.reduce((sum, c) => sum + (c.stdev || 0), 0) / Math.max(channels.length, 1);
+
   return {
     width: meta.width || 0,
     height: meta.height || 0,
@@ -100,7 +123,9 @@ function compositionHint(width, height) {
 
 app.use((err, _req, res, _next) => {
   console.error(err);
-  res.status(500).json({ error: 'Unexpected server error.' });
+  res.status(err.statusCode || 400).json({ error: err.message || 'Unexpected server error.' });
 });
 
-app.listen(PORT, () => console.log(`VAMSHI AI listening on port ${PORT}`));
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`VAMSHI AI listening on port ${PORT}`);
+});
