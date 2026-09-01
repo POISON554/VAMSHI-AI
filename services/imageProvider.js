@@ -23,21 +23,24 @@ async function generateVariants({ imageBuffer, metadata, seedBase }) {
 
   const client = new InferenceClient(process.env.HF_TOKEN);
   const base = describeMetadata(metadata);
-
-  // Sequential calls avoid burst failures on low-cost inference accounts.
+  const referenceBase64 = imageBuffer.toString('base64');
   const results = [];
+
+  // Sequential calls reduce burst failures on low-cost inference accounts.
   for (let i = 0; i < 4; i++) {
     const seed = seedBase + i * 7919;
     const prompt = `${HIDDEN_INSTRUCTION}\n\nAutomatic reference analysis: ${base}\n\nVariation direction: ${MODES[i]}\n\nGenerate only the finished artwork. No mockup, no garment, no room scene, no typography.`;
     try {
-      const image = await client.imageToImage({
+      const image = await client.imageTextToImage({
         model: MODEL,
-        inputs: imageBuffer,
-        prompt,
-        negative_prompt: 'text, letters, words, logo, watermark, signature, border, frame, mockup, clothing photograph, room, mannequin, unrelated objects, exact copy, mirror copy',
-        guidance_scale: Number(process.env.IMAGE_GUIDANCE || 5.5),
-        num_inference_steps: Number(process.env.IMAGE_STEPS || 28),
-        seed
+        inputs: referenceBase64,
+        parameters: {
+          prompt,
+          negative_prompt: 'text, letters, words, logo, watermark, signature, border, frame, mockup, clothing photograph, room, mannequin, unrelated objects, exact copy, mirror copy',
+          guidance_scale: Number(process.env.IMAGE_GUIDANCE || 5.5),
+          num_inference_steps: Number(process.env.IMAGE_STEPS || 28),
+          seed
+        }
       });
       const buffer = Buffer.from(await image.arrayBuffer());
       results.push({ index: i + 1, seed, dataUrl: `data:image/png;base64,${buffer.toString('base64')}` });
